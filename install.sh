@@ -165,7 +165,7 @@ for svc in $SERVICES; do
   prefix="$(svps_service_prefix "$svc")"
   fn="${prefix}_install"
   declare -F "$fn" >/dev/null 2>&1 || { warn "Modul '$svc' belum tersedia; dilewati."; continue; }
-  "$fn" || warn "Instalasi modul '$svc' gagal sebagian."
+  ( "$fn" ) || warn "Instalasi modul '$svc' gagal sebagian."
 done
 
 # ---------------------------------------------------------------------------

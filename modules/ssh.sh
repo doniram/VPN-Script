@@ -4,6 +4,9 @@
 [[ -n "${__SVPS_MOD_SSH_LOADED:-}" ]] && return 0
 __SVPS_MOD_SSH_LOADED=1
 
+# shellcheck source=/dev/null
+. "$SVPS_DIR/lib/quota.sh"
+
 SVPS_SSHD_DROPIN="/etc/ssh/sshd_config.d/99-scriptvps.conf"
 SVPS_SSH_MARK="# managed by scriptvps"
 
@@ -70,6 +73,7 @@ ssh_add() {
   printf '%s:%s\n' "$name" "$pass" | chpasswd
   chage -E "$expires" "$name" 2>/dev/null || true
   db_add ssh "$name" "$expires" "$iplimit" "$quota" "default" "$meta" || true
+  quota_register ssh "$name" "$(id -u "$name")" 2>/dev/null || true
 
   ok "Akun SSH dibuat: $name"
   plain "  Host      : $(public_ip)"
@@ -82,6 +86,7 @@ ssh_add() {
 ssh_del() {
   require_root
   local name="$1"
+  quota_unregister ssh "$name" 2>/dev/null || true
   userdel -r "$name" 2>/dev/null || warn "User sistem '$name' tidak ditemukan."
   db_del ssh "$name" || true
   ok "Akun SSH '$name' dihapus."

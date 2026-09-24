@@ -9,6 +9,8 @@ secrets/
 # Build artifacts
 dist/
 opencode.exe
+panel/bin/
+panel/scriptvps-panel
 
 # Editor / OS
 *.swp

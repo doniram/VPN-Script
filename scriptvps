@@ -18,6 +18,8 @@ SELF_DIR="$(cd "$(dirname "$SELF")" && pwd)"
 . "$SELF_DIR/lib/license.sh"
 # shellcheck source=/dev/null
 . "$SELF_DIR/lib/dns.sh"
+# shellcheck source=/dev/null
+. "$SELF_DIR/lib/quota.sh"
 
 # ---------------------------------------------------------------------------
 svps_usage() {
@@ -34,6 +36,9 @@ Pemakaian:
   scriptvps renew <service> <name> [--days N]
   scriptvps check [--json]
   scriptvps license status|info|set <KEY>|mode <off|repo>|url <URL>
+  scriptvps limit-speed <kbps|off|status>
+  scriptvps banner <teks|off>
+  scriptvps quota [report|sample|enforce]
   scriptvps version
 
 Service: ssh | ovpn | wg | xray | ss | sstp | l2tp | pptp
@@ -207,6 +212,8 @@ cmd_check() {
     fi
   done
   if (( json )); then printf '{"ok":true}\n'; else ok "Pemeriksaan kedaluwarsa selesai."; fi
+  quota_sample >/dev/null 2>&1 || true
+  quota_enforce >/dev/null 2>&1 || true
 }
 
 cmd_license() {
@@ -231,6 +238,34 @@ cmd_license() {
   esac
 }
 
+cmd_limit_speed() {
+  # shellcheck source=/dev/null
+  . "$SELF_DIR/modules/extras.sh"
+  case "${1:-}" in
+    ""|status) svps_limit_speed_status ;;
+    off|0) svps_limit_speed_off ;;
+    *) svps_limit_speed_set "$1" ;;
+  esac
+}
+
+cmd_banner() {
+  # shellcheck source=/dev/null
+  . "$SELF_DIR/modules/extras.sh"
+  case "${1:-}" in
+    ""|off|--clear) svps_banner_off ;;
+    *) svps_banner_set "$*" ;;
+  esac
+}
+
+cmd_quota() {
+  case "${1:-report}" in
+    sample) quota_sample; ok "Sampel kuota diperbarui." ;;
+    enforce) quota_enforce ;;
+    report|"") quota_report ;;
+    *) quota_report ;;
+  esac
+}
+
 # ---------------------------------------------------------------------------
 main() {
   local cmd="${1:-}"; shift || true
@@ -245,6 +280,9 @@ main() {
     renew) cmd_renew "$@" ;;
     check) cmd_check "$@" ;;
     license|licence) cmd_license "$@" ;;
+    limit-speed|limit) cmd_limit_speed "$@" ;;
+    banner) cmd_banner "$@" ;;
+    quota) cmd_quota "$@" ;;
     *) err "Perintah tidak dikenal: $cmd"; svps_usage; exit 1 ;;
   esac
 }

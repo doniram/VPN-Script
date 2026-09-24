@@ -29,7 +29,7 @@ for svc in $SPVS_ALL_SERVICES; do
   prefix="$(svps_service_prefix "$svc")"
   fn="${prefix}_uninstall"
   if declare -F "$fn" >/dev/null 2>&1; then
-    "$fn" || warn "Uninstall '$svc' gagal sebagian."
+    ( "$fn" ) || warn "Uninstall '$svc' gagal sebagian."
   fi
 done
 

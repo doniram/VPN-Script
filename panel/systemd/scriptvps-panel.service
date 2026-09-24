@@ -1,0 +1,21 @@
+[Unit]
+Description=scriptvps web panel
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=scriptvps
+Group=scriptvps
+Environment=SVPS_PANEL_ADDR=127.0.0.1:8080
+ExecStart=/opt/scriptvps-panel/scriptvps-panel serve
+Restart=on-failure
+RestartSec=3
+# The panel must be able to call `sudo -n scriptvps`, so NoNewPrivileges is off.
+NoNewPrivileges=false
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=/etc/scriptvps /var/log
+
+[Install]
+WantedBy=multi-user.target

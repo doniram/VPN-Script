@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>scriptvps panel</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div id="login" class="card narrow hidden">
+  <h1>scriptvps</h1>
+  <input id="u" placeholder="username" autocomplete="username">
+  <input id="p" type="password" placeholder="password" autocomplete="current-password">
+  <button id="loginBtn">Masuk</button>
+  <p id="loginMsg" class="msg"></p>
+</div>
+
+<div id="app" class="hidden">
+  <header>
+    <div><strong>scriptvps</strong> <span id="hostinfo" class="muted"></span></div>
+    <button id="logoutBtn" class="ghost">Keluar</button>
+  </header>
+
+  <nav id="tabs"></nav>
+
+  <main>
+    <section class="card">
+      <div class="row">
+        <input id="uname" placeholder="nama akun">
+        <input id="udays" type="number" value="30" title="masa aktif (hari)">
+        <input id="uiplimit" type="number" value="0" title="limit IP">
+        <input id="uquota" type="number" value="0" title="kuota (GB)">
+        <select id="uproto"><option value="vless">vless</option><option value="vmess">vmess</option><option value="trojan">trojan</option></select>
+        <select id="utrans"><option value="ws">ws</option><option value="grpc">grpc</option><option value="tcp">tcp</option></select>
+        <button id="addBtn">Tambah</button>
+      </div>
+      <pre id="output" class="out"></pre>
+      <div class="tablewrap">
+        <table id="users">
+          <thead><tr><th>Nama</th><th>Dibuat</th><th>Expires</th><th>Limit</th><th>Kuota</th><th>Info</th><th>Aksi</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card">
+      <h3>Status server</h3><pre id="status" class="out"></pre>
+      <h3>Lisensi</h3><pre id="license" class="out"></pre>
+      <h3>Kuota</h3><pre id="quota" class="out"></pre>
+      <h3>Limit bandwidth</h3>
+      <div class="row"><input id="kbps" placeholder="kbps atau off"><button id="limitBtn">Set</button></div>
+      <h3>Banner SSH</h3>
+      <div class="row"><input id="banner" placeholder="teks banner (kosong = matikan)"><button id="bannerBtn">Set</button></div>
+    </section>
+  </main>
+</div>
+<script src="/app.js"></script>
+</body>
+</html>

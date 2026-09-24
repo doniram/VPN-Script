@@ -1,0 +1,12 @@
+# Restricted sudoers drop-in for the scriptvps web panel.
+# The panel runs as the unprivileged `scriptvps` user and may ONLY invoke the
+# fixed set of management subcommands below. No shell is involved.
+scriptvps ALL=(root) NOPASSWD: /usr/local/bin/scriptvps status --json
+scriptvps ALL=(root) NOPASSWD: /usr/local/bin/scriptvps list * --json
+scriptvps ALL=(root) NOPASSWD: /usr/local/bin/scriptvps add *
+scriptvps ALL=(root) NOPASSWD: /usr/local/bin/scriptvps del *
+scriptvps ALL=(root) NOPASSWD: /usr/local/bin/scriptvps renew *
+scriptvps ALL=(root) NOPASSWD: /usr/local/bin/scriptvps license info
+scriptvps ALL=(root) NOPASSWD: /usr/local/bin/scriptvps limit-speed *
+scriptvps ALL=(root) NOPASSWD: /usr/local/bin/scriptvps banner *
+scriptvps ALL=(root) NOPASSWD: /usr/local/bin/scriptvps quota report

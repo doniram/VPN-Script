@@ -79,6 +79,8 @@ while true; do
   plain "  4) Xray            8) PPTP"
   plain "  9) Status server   10) Bersihkan kedaluwarsa"
   plain "  11) Info lisensi   12) Update script"
+  plain "  13) Limit bandwidth 14) Banner SSH"
+  plain "  15) Laporan kuota"
   plain "  0) Keluar"
   read -r -p "Pilih: " c || true
   case "$c" in
@@ -96,6 +98,15 @@ while true; do
     12)
       if [[ -d "$SVPS_DIR/.git" ]]; then ( cd "$SVPS_DIR" && git pull --ff-only ) || true; else warn "Bukan repo git."; fi
       read -r -p "Enter..." _ || true ;;
+    13)
+      read -r -p "Batas (kbps) atau 'off': " kbps || true
+      if [[ -n "$kbps" ]]; then "$CLI" limit-speed "$kbps" || true; fi
+      read -r -p "Enter..." _ || true ;;
+    14)
+      read -r -p "Banner (kosong = matikan): " btext || true
+      "$CLI" banner "$btext" || true
+      read -r -p "Enter..." _ || true ;;
+    15) "$CLI" quota report; read -r -p "Enter..." _ || true ;;
     0) exit 0 ;;
     *) ;;
   esac
