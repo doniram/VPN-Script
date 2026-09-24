@@ -1,0 +1,16 @@
+# Secrets / runtime state (never commit)
+*.key
+*.pem
+license.key
+licenses.tsv
+secrets/
+.env
+
+# Build artifacts
+dist/
+opencode.exe
+
+# Editor / OS
+*.swp
+.DS_Store
+Thumbs.db

@@ -1,0 +1,252 @@
+#!/usr/bin/env bash
+# scriptvps - management CLI
+set -euo pipefail
+
+SELF="$(readlink -f "${BASH_SOURCE[0]}")"
+SELF_DIR="$(cd "$(dirname "$SELF")" && pwd)"
+# shellcheck source=/dev/null
+. "$SELF_DIR/lib/common.sh"
+# shellcheck source=/dev/null
+. "$SELF_DIR/lib/net.sh"
+# shellcheck source=/dev/null
+. "$SELF_DIR/lib/verify.sh"
+# shellcheck source=/dev/null
+. "$SELF_DIR/lib/db.sh"
+# shellcheck source=/dev/null
+. "$SELF_DIR/lib/services.sh"
+# shellcheck source=/dev/null
+. "$SELF_DIR/lib/license.sh"
+# shellcheck source=/dev/null
+. "$SELF_DIR/lib/dns.sh"
+
+# ---------------------------------------------------------------------------
+svps_usage() {
+  cat <<'EOF'
+scriptvps - auto installer & manager SSH/VPN
+
+Pemakaian:
+  scriptvps menu
+  scriptvps status [--json]
+  scriptvps list <service> [--json]
+  scriptvps add <service> <name> [--days N] [--iplimit N] [--quota N]
+              [--protocol vless|vmess|trojan] [--transport ws|grpc|tcp] [--json]
+  scriptvps del <service> <name>
+  scriptvps renew <service> <name> [--days N]
+  scriptvps check [--json]
+  scriptvps license status|info|set <KEY>|mode <off|repo>|url <URL>
+  scriptvps version
+
+Service: ssh | ovpn | wg | xray | ss | sstp | l2tp | pptp
+EOF
+}
+
+svps_require_service() {
+  local svc="$1"
+  svps_service_module "$svc" >/dev/null 2>&1 || die "Layanan tidak dikenal: $svc"
+}
+
+# run_service_op <service> <op> <name> [rest...]
+# Captures module stdout; on failure, propagates the exit code.
+run_service_op() {
+  local svc="$1" op="$2"; shift 2
+  svps_require_service "$svc"
+  svps_load_service "$svc"
+  local prefix; prefix="$(svps_service_prefix "$svc")"
+  local fn="${prefix}_${op}"
+  declare -F "$fn" >/dev/null 2>&1 || die "Operasi '$op' tidak didukung untuk '$svc'."
+  "$fn" "$@"
+}
+
+# ---------------------------------------------------------------------------
+cmd_status() {
+  local json=0
+  [[ "${1:-}" == "--json" ]] && json=1
+  local out="" svc prefix f
+  out="$(for svc in $SPVS_ALL_SERVICES; do
+      [[ -f "$(db_file "$svc")" ]] || continue
+      svps_service_available "$svc" || continue
+      svps_load_service "$svc" 2>/dev/null || continue
+      prefix="$(svps_service_prefix "$svc")"
+      if declare -F "${prefix}_status" >/dev/null 2>&1; then
+        printf '%s|%s\n' "$svc" "$("${prefix}"_status 2>/dev/null || echo "unknown")"
+      fi
+    done)"
+  if (( json )); then
+    local first=1
+    printf '{'
+    printf '"hostname":"%s","ip":"%s","version":"%s",' \
+      "$(json_escape "$(hostname)")" "$(json_escape "$(public_ip || echo '')")" "$(svps_version)"
+    printf '"services":['
+    while IFS='|' read -r svc st; do
+      [[ -z "$svc" ]] && continue
+      (( first )) || printf ','; first=0
+      printf '{"service":"%s","state":"%s","accounts":%s}' \
+        "$(json_escape "$svc")" "$(json_escape "$st")" "$(db_count "$svc")"
+    done <<<"$out"
+    printf ']}\n'
+  else
+    plain "${C_BOLD}scriptvps $(svps_version)${C_RESET} - $(hostname) ($(public_ip || echo '?'))"
+    if [[ -z "$out" ]]; then
+      plain "Belum ada layanan terpasang."
+    else
+      while IFS='|' read -r svc st; do [[ -n "$svc" ]] && plain "  - $st"; done <<<"$out"
+    fi
+  fi
+}
+
+cmd_list() {
+  local svc="${1:-}" json=0
+  [[ -z "$svc" ]] && die "Gunakan: scriptvps list <service> [--json]"
+  [[ "${2:-}" == "--json" ]] && json=1
+  svps_require_service "$svc"
+
+  if (( json )); then
+    local first=1
+    printf '['
+    while IFS=$'\t' read -r name created expires iplimit quota plan meta; do
+      (( first )) || printf ','; first=0
+      printf '{"name":"%s","created":"%s","expires":"%s","iplimit":%s,"quota_gb":%s,"plan":"%s","meta":"%s"}' \
+        "$(json_escape "$name")" "$(json_escape "$created")" "$(json_escape "$expires")" \
+        "${iplimit:-0}" "${quota:-0}" "$(json_escape "$plan")" "$(json_escape "$meta")"
+    done < <(db_list "$svc")
+    printf ']\n'
+  else
+    svps_load_service "$svc"
+    local prefix; prefix="$(svps_service_prefix "$svc")"
+    if declare -F "${prefix}_list" >/dev/null 2>&1; then
+      "${prefix}_list"
+    else
+      db_list "$svc"
+    fi
+  fi
+}
+
+cmd_add() {
+  local svc="${1:-}"; shift || true
+  local name="${1:-}"; shift || true
+  local days=30 iplimit=0 quota=0 json=0 protocol="" transport=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --days) days="${2:?}"; shift 2 ;;
+      --iplimit) iplimit="${2:?}"; shift 2 ;;
+      --quota) quota="${2:?}"; shift 2 ;;
+      --protocol) protocol="${2:?}"; shift 2 ;;
+      --transport) transport="${2:?}"; shift 2 ;;
+      --json) json=1; shift ;;
+      *) die "Opsi tidak dikenal: $1" ;;
+    esac
+  done
+  [[ -z "$svc" || -z "$name" ]] && die "Gunakan: scriptvps add <service> <name> [opsi]"
+  [[ "$days" =~ ^[0-9]+$ ]] || die "--days harus angka."
+  svps_require_service "$svc"
+
+  license_require || die "Lisensi tidak valid."
+
+  local meta=""
+  [[ -n "$protocol" ]] && meta="proto=${protocol}"
+  [[ -n "$transport" ]] && meta="${meta:+$meta;}transport=${transport}"
+
+  export XRAY_PROTOCOL="${protocol:-vless}"
+  export XRAY_TRANSPORT="${transport}"
+
+  local out
+  if ! out="$(run_service_op "$svc" add "$name" "$days" "$iplimit" "$quota" "$meta" 2>&1)"; then
+    printf '%s\n' "$out" >&2; exit 1
+  fi
+
+  if (( json )); then
+    printf '{"ok":true,"service":"%s","name":"%s","days":%s,"expires":"%s","output":"%s"}\n' \
+      "$(json_escape "$svc")" "$(json_escape "$name")" "$days" \
+      "$(json_escape "$(db_field "$svc" "$name" 3)")" "$(json_escape "$out")"
+  else
+    printf '%s\n' "$out"
+  fi
+}
+
+cmd_del() {
+  local svc="${1:-}"; shift || true
+  local name="${1:-}"
+  [[ -z "$svc" || -z "$name" ]] && die "Gunakan: scriptvps del <service> <name>"
+  svps_require_service "$svc"
+  license_require || die "Lisensi tidak valid."
+  local out
+  if ! out="$(run_service_op "$svc" del "$name" 2>&1)"; then printf '%s\n' "$out" >&2; exit 1; fi
+  printf '%s\n' "$out"
+}
+
+cmd_renew() {
+  local svc="${1:-}"; shift || true
+  local name="${1:-}"; shift || true
+  local days=30
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --days) days="${2:?}"; shift 2 ;;
+      *) die "Opsi tidak dikenal: $1" ;;
+    esac
+  done
+  [[ -z "$svc" || -z "$name" ]] && die "Gunakan: scriptvps renew <service> <name> [--days N]"
+  svps_require_service "$svc"
+  license_require || die "Lisensi tidak valid."
+  local out
+  if ! out="$(run_service_op "$svc" renew "$name" "$days" 2>&1)"; then printf '%s\n' "$out" >&2; exit 1; fi
+  printf '%s\n' "$out"
+}
+
+cmd_check() {
+  local json=0
+  [[ "${1:-}" == "--json" ]] && json=1
+  license_warn || true
+  local svc prefix f
+  for svc in $SPVS_ALL_SERVICES; do
+    f="$(db_file "$svc")"; [[ -f "$f" ]] || continue
+    svps_service_available "$svc" || continue
+    svps_load_service "$svc" 2>/dev/null || continue
+    prefix="$(svps_service_prefix "$svc")"
+    if declare -F "${prefix}_expire_cleanup" >/dev/null 2>&1; then
+      "${prefix}_expire_cleanup" >/dev/null 2>&1 || true
+    fi
+  done
+  if (( json )); then printf '{"ok":true}\n'; else ok "Pemeriksaan kedaluwarsa selesai."; fi
+}
+
+cmd_license() {
+  local sub="${1:-status}"; shift || true
+  case "$sub" in
+    status) license_status ;;
+    info) license_info ;;
+    set)
+      local key="${1:-}"; [[ -n "$key" ]] || die "Gunakan: scriptvps license set <KEY>"
+      license_set_key "$key"; ok "License key disimpan."
+      local st; st="$(license_status)"; plain "Status: $st"
+      ;;
+    mode)
+      local m="${1:-}"; [[ "$m" == "off" || "$m" == "repo" ]] || die "mode: off|repo"
+      config_set license_mode "$m"; ok "license_mode=$m"
+      ;;
+    url)
+      local u="${1:-}"; [[ -n "$u" ]] || die "Gunakan: scriptvps license url <URL>"
+      config_set license_manifest_url "$u"; ok "license_manifest_url diatur."
+      ;;
+    *) die "Sub-perintah license tidak dikenal: $sub" ;;
+  esac
+}
+
+# ---------------------------------------------------------------------------
+main() {
+  local cmd="${1:-}"; shift || true
+  case "$cmd" in
+    ""|help|-h|--help) svps_usage ;;
+    version|-v|--version) printf 'scriptvps %s\n' "$(svps_version)" ;;
+    menu) exec "$SELF_DIR/parts/menu.sh" ;;
+    status) cmd_status "$@" ;;
+    list) cmd_list "$@" ;;
+    add) cmd_add "$@" ;;
+    del|delete|remove) cmd_del "$@" ;;
+    renew) cmd_renew "$@" ;;
+    check) cmd_check "$@" ;;
+    license|licence) cmd_license "$@" ;;
+    *) err "Perintah tidak dikenal: $cmd"; svps_usage; exit 1 ;;
+  esac
+}
+
+main "$@"
