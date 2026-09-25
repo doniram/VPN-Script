@@ -10,3 +10,7 @@ scriptvps ALL=(root) NOPASSWD: /usr/local/bin/scriptvps license info
 scriptvps ALL=(root) NOPASSWD: /usr/local/bin/scriptvps limit-speed *
 scriptvps ALL=(root) NOPASSWD: /usr/local/bin/scriptvps banner *
 scriptvps ALL=(root) NOPASSWD: /usr/local/bin/scriptvps quota report
+scriptvps ALL=(root) NOPASSWD: /usr/local/bin/scriptvps users --json
+scriptvps ALL=(root) NOPASSWD: /usr/local/bin/scriptvps online --json
+scriptvps ALL=(root) NOPASSWD: /usr/local/bin/scriptvps port show --json
+scriptvps ALL=(root) NOPASSWD: /usr/local/bin/scriptvps port set *

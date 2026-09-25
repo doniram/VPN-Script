@@ -305,6 +305,55 @@ func handleBanner(w http.ResponseWriter, r *http.Request) {
 	runAndRespond(w, "banner", body.Text)
 }
 
+func handleUsers(w http.ResponseWriter, _ *http.Request) {
+	out, err := runCLI("users", "--json")
+	if err != nil {
+		writeJSON(w, 200, map[string]any{"ok": false, "output": out, "error": err.Error()})
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_, _ = w.Write([]byte(out))
+}
+
+func handleOnline(w http.ResponseWriter, _ *http.Request) {
+	out, err := runCLI("online", "--json")
+	if err != nil {
+		writeJSON(w, 200, map[string]any{"ok": false, "output": out, "error": err.Error()})
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_, _ = w.Write([]byte(out))
+}
+
+var keyRe = regexp.MustCompile(`^[a-z0-9-]{1,24}$`)
+
+func handlePorts(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet {
+		out, err := runCLI("port", "show", "--json")
+		if err != nil {
+			writeJSON(w, 200, map[string]any{"ok": false, "output": out, "error": err.Error()})
+			return
+		}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		_, _ = w.Write([]byte(out))
+		return
+	}
+	var body struct {
+		Service string `json:"service"`
+		Key     string `json:"key"`
+		Value   string `json:"value"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		apiError(w, http.StatusBadRequest, "body tidak valid")
+		return
+	}
+	if !validService(body.Service) || !keyRe.MatchString(body.Key) || !regexp.MustCompile(`^[0-9]{1,5}$`).MatchString(body.Value) {
+		apiError(w, http.StatusBadRequest, "parameter port tidak valid")
+		return
+	}
+	runAndRespond(w, "port", "set", body.Service, body.Key, body.Value)
+}
+
 func itoa(n int) string { return strconv.Itoa(n) }
 
 // ---------------------------------------------------------------------------
@@ -322,6 +371,10 @@ func newMux() *http.ServeMux {
 	mux.HandleFunc("POST /api/services/{svc}/users/{name}/renew", requireAuth(handleRenewUser))
 	mux.HandleFunc("GET /api/license", requireAuth(handleLicense))
 	mux.HandleFunc("GET /api/quota", requireAuth(handleQuota))
+	mux.HandleFunc("GET /api/users", requireAuth(handleUsers))
+	mux.HandleFunc("GET /api/online", requireAuth(handleOnline))
+	mux.HandleFunc("GET /api/ports", requireAuth(handlePorts))
+	mux.HandleFunc("POST /api/ports", requireAuth(handlePorts))
 	mux.HandleFunc("GET /api/limit-speed", requireAuth(handleLimitSpeed))
 	mux.HandleFunc("POST /api/limit-speed", requireAuth(handleLimitSpeed))
 	mux.HandleFunc("POST /api/banner", requireAuth(handleBanner))

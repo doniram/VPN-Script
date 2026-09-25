@@ -20,6 +20,12 @@ SELF_DIR="$(cd "$(dirname "$SELF")" && pwd)"
 . "$SELF_DIR/lib/dns.sh"
 # shellcheck source=/dev/null
 . "$SELF_DIR/lib/quota.sh"
+# shellcheck source=/dev/null
+. "$SELF_DIR/lib/ui.sh"
+# shellcheck source=/dev/null
+. "$SELF_DIR/lib/accounts.sh"
+# shellcheck source=/dev/null
+. "$SELF_DIR/lib/ports.sh"
 
 # ---------------------------------------------------------------------------
 svps_usage() {
@@ -29,7 +35,10 @@ scriptvps - auto installer & manager SSH/VPN
 Pemakaian:
   scriptvps menu
   scriptvps status [--json]
-  scriptvps list <service> [--json]
+  scriptvps list <service|all> [--json]
+  scriptvps users [--json]
+  scriptvps online [--json]
+  scriptvps port show | port set <service> <key> <value>
   scriptvps add <service> <name> [--days N] [--iplimit N] [--quota N]
               [--protocol vless|vmess|trojan] [--transport ws|grpc|tcp] [--json]
   scriptvps del <service> <name>
@@ -101,8 +110,12 @@ cmd_status() {
 
 cmd_list() {
   local svc="${1:-}" json=0
-  [[ -z "$svc" ]] && die "Gunakan: scriptvps list <service> [--json]"
+  [[ -z "$svc" ]] && die "Gunakan: scriptvps list <service|all> [--json]"
   [[ "${2:-}" == "--json" ]] && json=1
+  if [[ "$svc" == "all" ]]; then
+    if (( json )); then cmd_users --json; else acct_print all; fi
+    return 0
+  fi
   svps_require_service "$svc"
 
   if (( json )); then
@@ -116,14 +129,68 @@ cmd_list() {
     done < <(db_list "$svc")
     printf ']\n'
   else
-    svps_load_service "$svc"
-    local prefix; prefix="$(svps_service_prefix "$svc")"
-    if declare -F "${prefix}_list" >/dev/null 2>&1; then
-      "${prefix}_list"
-    else
-      db_list "$svc"
-    fi
+    acct_print "$svc"
   fi
+}
+
+cmd_users() {
+  local json=0
+  [[ "${1:-}" == "--json" ]] && json=1
+  if (( json )); then
+    local first=1 svc name created expires iplimit quota plan meta status
+    printf '['
+    for svc in $SPVS_ALL_SERVICES; do
+      [[ -f "$(db_file "$svc")" ]] || continue
+      while IFS=$'\t' read -r name created expires iplimit quota plan meta; do
+        [[ -z "$name" ]] && continue
+        status="$(acct_status "$svc" "$name")"
+        (( first )) || printf ','; first=0
+        printf '{"service":"%s","name":"%s","created":"%s","expires":"%s","days_left":"%s","iplimit":%s,"quota_gb":%s,"used_gb":%s,"status":"%s","ip":"%s"}' \
+          "$(json_escape "$svc")" "$(json_escape "$name")" "$(json_escape "$created")" \
+          "$(json_escape "$expires")" "$(json_escape "$(acct_days_left "$expires")")" \
+          "${iplimit:-0}" "${quota:-0}" "$(acct_used_gb "$svc" "$name")" \
+          "$(json_escape "$status")" "$(json_escape "$(acct_online_ip "$svc" "$name")")"
+      done < <(db_list "$svc")
+    done
+    printf ']\n'
+  else
+    acct_print all
+  fi
+}
+
+cmd_online() {
+  if [[ "${1:-}" == "--json" ]]; then
+    local first=1 svc name expires ip
+    printf '['
+    for svc in $SPVS_ALL_SERVICES; do
+      [[ -f "$(db_file "$svc")" ]] || continue
+      while IFS=$'\t' read -r name _ expires _ _ _ _; do
+        [[ -z "$name" ]] && continue
+        ip="$(acct_online_ip "$svc" "$name")"
+        [[ -n "$ip" ]] || continue
+        (( first )) || printf ','; first=0
+        printf '{"service":"%s","name":"%s","ip":"%s","expires":"%s"}' \
+          "$(json_escape "$svc")" "$(json_escape "$name")" "$(json_escape "$ip")" "$(json_escape "$expires")"
+      done < <(db_list "$svc")
+    done
+    printf ']\n'
+  else
+    acct_print_online
+  fi
+}
+
+cmd_port() {
+  local sub="${1:-show}"; shift || true
+  case "$sub" in
+    show)
+      if [[ "${1:-}" == "--json" ]]; then port_show_json; else port_show; fi ;;
+    set)
+      [[ $# -ge 2 ]] || die "Gunakan: scriptvps port set <service> <key> <value>"
+      license_require || die "Lisensi tidak valid."
+      port_set "$1" "$2" "${3:-}" ;;
+    get) port_get "$1" "${2:-}"; printf '\n' ;;
+    *) die "Gunakan: scriptvps port show|set <service> <key> <value>" ;;
+  esac
 }
 
 cmd_add() {
@@ -275,6 +342,9 @@ main() {
     menu) exec "$SELF_DIR/parts/menu.sh" ;;
     status) cmd_status "$@" ;;
     list) cmd_list "$@" ;;
+    users|members) cmd_users "$@" ;;
+    online) cmd_online "$@" ;;
+    port) cmd_port "$@" ;;
     add) cmd_add "$@" ;;
     del|delete|remove) cmd_del "$@" ;;
     renew) cmd_renew "$@" ;;

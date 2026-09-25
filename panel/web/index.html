@@ -3,57 +3,111 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>scriptvps panel</title>
+<title>scriptvps · panel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-<div id="login" class="card narrow hidden">
-  <h1>scriptvps</h1>
-  <input id="u" placeholder="username" autocomplete="username">
-  <input id="p" type="password" placeholder="password" autocomplete="current-password">
-  <button id="loginBtn">Masuk</button>
-  <p id="loginMsg" class="msg"></p>
+<div id="toast" class="toast hidden"></div>
+
+<div id="login" class="login hidden">
+  <form class="login-card" id="loginForm">
+    <div class="brand">SCRIPT<span>VPS</span></div>
+    <p class="muted">Masuk ke panel manajemen</p>
+    <label>Username<input id="u" autocomplete="username" required></label>
+    <label>Password<input id="p" type="password" autocomplete="current-password" required></label>
+    <button class="primary" type="submit">Masuk</button>
+    <p id="loginMsg" class="err"></p>
+  </form>
 </div>
 
-<div id="app" class="hidden">
-  <header>
-    <div><strong>scriptvps</strong> <span id="hostinfo" class="muted"></span></div>
-    <button id="logoutBtn" class="ghost">Keluar</button>
-  </header>
+<div id="app" class="app hidden">
+  <aside class="sidebar">
+    <div class="brand small">SCRIPT<span>VPS</span></div>
+    <nav>
+      <button class="nav-btn active" data-view="users">Akun</button>
+      <button class="nav-btn" data-view="ports">Port</button>
+      <button class="nav-btn" data-view="system">Sistem</button>
+    </nav>
+    <div class="side-foot">
+      <span id="who" class="muted"></span>
+      <button id="logout" class="ghost">Keluar</button>
+    </div>
+  </aside>
 
-  <nav id="tabs"></nav>
-
-  <main>
-    <section class="card">
-      <div class="row">
-        <input id="uname" placeholder="nama akun">
-        <input id="udays" type="number" value="30" title="masa aktif (hari)">
-        <input id="uiplimit" type="number" value="0" title="limit IP">
-        <input id="uquota" type="number" value="0" title="kuota (GB)">
-        <select id="uproto"><option value="vless">vless</option><option value="vmess">vmess</option><option value="trojan">trojan</option></select>
-        <select id="utrans"><option value="ws">ws</option><option value="grpc">grpc</option><option value="tcp">tcp</option></select>
-        <button id="addBtn">Tambah</button>
+  <main class="content">
+    <header class="topbar">
+      <div>
+        <h1 id="viewTitle">Akun</h1>
+        <span id="hostline" class="muted"></span>
       </div>
-      <pre id="output" class="out"></pre>
-      <div class="tablewrap">
-        <table id="users">
-          <thead><tr><th>Nama</th><th>Dibuat</th><th>Expires</th><th>Limit</th><th>Kuota</th><th>Info</th><th>Aksi</th></tr></thead>
+      <button id="refresh" class="ghost">Refresh</button>
+    </header>
+
+    <section class="stats" id="stats"></section>
+
+    <section id="view-users" class="view">
+      <div class="toolbar">
+        <div id="chips" class="chips"></div>
+        <input id="search" class="search" placeholder="Cari nama...">
+        <button id="addOpen" class="primary">+ Tambah akun</button>
+      </div>
+      <div class="card tablecard">
+        <table id="table">
+          <thead><tr><th>Layanan</th><th>Nama</th><th>Expires</th><th>Sisa</th><th>Kuota</th><th>Status</th><th>IP</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <p id="emptyUsers" class="muted empty hidden">Belum ada akun.</p>
+      </div>
+    </section>
+
+    <section id="view-ports" class="view hidden">
+      <div class="card tablecard">
+        <table id="portTable">
+          <thead><tr><th>Layanan</th><th>Key</th><th>Port</th><th></th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
     </section>
 
-    <section class="card">
-      <h3>Status server</h3><pre id="status" class="out"></pre>
-      <h3>Lisensi</h3><pre id="license" class="out"></pre>
-      <h3>Kuota</h3><pre id="quota" class="out"></pre>
-      <h3>Limit bandwidth</h3>
-      <div class="row"><input id="kbps" placeholder="kbps atau off"><button id="limitBtn">Set</button></div>
-      <h3>Banner SSH</h3>
-      <div class="row"><input id="banner" placeholder="teks banner (kosong = matikan)"><button id="bannerBtn">Set</button></div>
+    <section id="view-system" class="view hidden">
+      <div class="grid2">
+        <div class="card"><h3>Status server</h3><pre id="status" class="out"></pre></div>
+        <div class="card"><h3>Lisensi</h3><pre id="license" class="out"></pre></div>
+        <div class="card"><h3>Kuota</h3><pre id="quota" class="out"></pre></div>
+        <div class="card">
+          <h3>Limit bandwidth</h3>
+          <div class="row"><input id="kbps" placeholder="kbps / off"><button id="limitBtn" class="primary">Set</button></div>
+          <h3>Banner SSH</h3>
+          <div class="row"><input id="banner" placeholder="teks banner"><button id="bannerBtn" class="primary">Set</button></div>
+        </div>
+      </div>
     </section>
   </main>
 </div>
+
+<div id="modal" class="modal hidden">
+  <div class="modal-card">
+    <h2>Tambah akun</h2>
+    <label>Layanan<select id="m_svc"></select></label>
+    <label>Nama<input id="m_name" placeholder="contoh: budi"></label>
+    <div class="row">
+      <label>Hari<input id="m_days" type="number" value="30"></label>
+      <label>Limit IP<input id="m_ipl" type="number" value="0"></label>
+      <label>Kuota GB<input id="m_quota" type="number" value="0"></label>
+    </div>
+    <div class="row" id="xrayOpts">
+      <label>Protokol<select id="m_proto"><option>vless</option><option>vmess</option><option>trojan</option></select></label>
+      <label>Transport<select id="m_trans"><option>ws</option><option>grpc</option><option>tcp</option></select></label>
+    </div>
+    <pre id="m_out" class="out hidden"></pre>
+    <div class="modal-actions">
+      <button id="m_cancel" class="ghost">Batal</button>
+      <button id="m_save" class="primary">Simpan</button>
+    </div>
+  </div>
+</div>
+
 <script src="/app.js"></script>
 </body>
 </html>

@@ -12,6 +12,8 @@ WG_SERVER_IP="${WG_SERVER_IP:-10.66.66.1}"
 WG_PORT="${WG_PORT:-51820}"
 WG_DNS="${WG_DNS:-1.1.1.1}"
 
+wg_port() { config_get wg_port "${WG_PORT:-51820}"; }
+
 wg_install() {
   require_root
   info "Memasang modul WireGuard"
@@ -30,14 +32,14 @@ wg_install() {
 # managed by scriptvps
 [Interface]
 Address = ${WG_SERVER_IP}/24
-ListenPort = ${WG_PORT}
+ListenPort = $(wg_port)
 PrivateKey = ${priv}
 PostUp = iptables -A FORWARD -i %i -j ACCEPT; iptables -A FORWARD -o %i -j ACCEPT; iptables -t nat -A POSTROUTING -o ${iface} -j MASQUERADE
 PostDown = iptables -D FORWARD -i %i -j ACCEPT; iptables -D FORWARD -o %i -j ACCEPT; iptables -t nat -D POSTROUTING -o ${iface} -j MASQUERADE
 EOF
     chmod 600 "$WG_CONF"
     config_set wg_server_public_key "$pub"
-    config_set wg_port "$WG_PORT"
+    config_set wg_port "$(wg_port)"
   fi
   systemctl enable wg-quick@"$WG_IFACE" >/dev/null 2>&1 || true
   systemctl restart wg-quick@"$WG_IFACE" 2>/dev/null || warn "Tidak bisa start wg-quick (mungkin tidak ada systemd)."
@@ -99,7 +101,7 @@ EOF
 
   local srv_ip endpoint out
   srv_ip="$(public_ip)"
-  endpoint="${srv_ip}:${WG_PORT}"
+  endpoint="${srv_ip}:$(wg_port)"
   out="$SVPS_CLIENTS/${name}-wg.conf"
   cat >"$out" <<EOF
 [Interface]

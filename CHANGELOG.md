@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.0 - UI, daftar user & pengaturan port
+- Terminal UI baru: banner, dashboard, kotak berwarna, tabel rapi (`lib/ui.sh`).
+- Menu teks gaya repo pertama: panel per layanan + sistem + ganti port.
+- Daftar user kaya: `users`, `online`, `list all` (sisa hari, kuota, status, IP online).
+- Deteksi online: SSH (who), WireGuard (handshake), OpenVPN (status log), Shadowsocks (koneksi port).
+- Pengaturan port: `scriptvps port show|set` untuk SSH/OpenVPN/WG/Xray/SS/SSTP (+ 13 key).
+- Panel web didesain ulang: sidebar, kartu statistik, tabel, modal tambah akun, halaman Port & Sistem.
+
 ## 0.3.0 - Fase 3 (panel web)
 - Panel web Go (single binary, frontend ter-embed): dashboard, kelola akun per layanan,
   lisensi, kuota, limit-speed, banner.

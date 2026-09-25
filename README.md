@@ -46,7 +46,10 @@ sudo ./install.sh --services "ssh ovpn wg xray ss sstp l2tp" \
 ```bash
 scriptvps menu
 scriptvps status [--json]
-scriptvps list <service> [--json]
+scriptvps list <service|all> [--json]
+scriptvps users [--json]             # daftar akun lengkap: sisa hari, kuota, online, IP
+scriptvps online [--json]            # user yang sedang online
+scriptvps port show | port set <service> <key> <value>
 scriptvps add <service> <name> --days 30 [--iplimit N] [--quota GB]
 scriptvps add xray tono --days 30 --protocol vless --transport grpc
 scriptvps renew <service> <name> --days 30

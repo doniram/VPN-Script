@@ -10,6 +10,9 @@ OVPN_PKI="$OVPN_DIR/easy-rsa"
 OVPN_INSTANCE="server"
 OVPN_PORT="${OVPN_PORT:-1194}"
 OVPN_PROTO="${OVPN_PROTO:-udp}"
+
+ovpn_port()  { config_get ovpn_port "${OVPN_PORT:-1194}"; }
+ovpn_proto() { config_get ovpn_proto "${OVPN_PROTO:-udp}"; }
 OVPN_SUBNET="${OVPN_SUBNET:-10.8.0.0}"
 OVPN_MASK="${OVPN_MASK:-255.255.255.0}"
 EASYRSA_BIN="/usr/share/easy-rsa/easyrsa"
@@ -42,8 +45,8 @@ EOF
 _ovpn_server_conf() {
   cat >"$OVPN_SERVER_DIR/${OVPN_INSTANCE}.conf" <<EOF
 # managed by scriptvps
-port ${OVPN_PORT}
-proto ${OVPN_PROTO}
+port $(ovpn_port)
+proto $(ovpn_proto)
 dev tun
 ca ${OVPN_PKI}/pki/ca.crt
 cert ${OVPN_PKI}/pki/issued/server.crt
@@ -106,7 +109,7 @@ ovpn_install() {
   systemctl enable openvpn-server@"$OVPN_INSTANCE" >/dev/null 2>&1 || true
   systemctl restart openvpn-server@"$OVPN_INSTANCE" 2>/dev/null || warn "Tidak bisa start OpenVPN (mungkin tidak ada systemd)."
   db_init ovpn
-  ok "Modul OpenVPN siap (${OVPN_PROTO}/${OVPN_PORT})."
+  ok "Modul OpenVPN siap ($(ovpn_proto)/$(ovpn_port))."
 }
 
 ovpn_uninstall() {
@@ -140,7 +143,7 @@ ovpn_add() {
 
   ok "Client OpenVPN dibuat: $name"
   plain "  Config    : $out"
-  plain "  Server    : $(public_ip):${OVPN_PORT}/${OVPN_PROTO}"
+  plain "  Server    : $(public_ip):$(ovpn_port)/$(ovpn_proto)"
   plain "  Expires   : $expires"
 }
 
@@ -149,8 +152,8 @@ _ovpn_build_inline() {
   {
     printf 'client\n'
     printf 'dev tun\n'
-    printf 'proto %s\n' "$OVPN_PROTO"
-    printf 'remote %s %s\n' "$(public_ip)" "$OVPN_PORT"
+    printf 'proto %s\n' "$(ovpn_proto)"
+    printf 'remote %s %s\n' "$(public_ip)" "$(ovpn_port)"
     printf 'resolv-retry infinite\nnobind\npersist-key\npersist-tun\n'
     printf 'remote-cert-tls server\ncipher AES-256-GCM\nauth SHA256\nkey-direction 1\nverb 3\n'
     printf '<ca>\n';     cat "$OVPN_PKI/pki/ca.crt"
